@@ -6,15 +6,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import it.polito.tdp.seriea.model.Season;
+import it.polito.tdp.seriea.model.SeasondAndPoints;
 import it.polito.tdp.seriea.model.Team;
 
 public class SerieADAO {
 
-	public List<Season> listAllSeasons() {
+	public void listAllSeasons(Map<Integer,Season> map) {
 		String sql = "SELECT season, description FROM seasons";
-		List<Season> result = new ArrayList<>();
+		
 		Connection conn = DBConnect.getConnection();
 
 		try {
@@ -22,16 +24,16 @@ public class SerieADAO {
 			ResultSet res = st.executeQuery();
 
 			while (res.next()) {
-				result.add(new Season(res.getInt("season"), res.getString("description")));
+				map.put(res.getInt("season"),new Season(res.getInt("season"), res.getString("description")));
 			}
 
 			conn.close();
-			return result;
+			return;
 
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			return null;
+			return;
 		}
 	}
 
@@ -57,5 +59,44 @@ public class SerieADAO {
 		}
 	}
 
+	
+	public List<SeasondAndPoints> listSeasondAndPoints(String team,Map<Integer,Season> map) {
+		String sql = "select distinct  tableH.Season,SUM(tableH.tot + tableA.tot+ tableD.tot) as sum " + 
+				"from " + 
+				"(select Season,HomeTeam,count(distinct(match_id))*3 as tot " + 
+				"from matches " + 
+				"where HomeTeam=? and FTR='H'" + 
+				"group by Season,HomeTeam) as tableH , (select Season,HomeTeam,count(distinct(match_id))*3 as tot\n" + 
+				"from matches " + 
+				" where AwayTeam=? and FTR='A' " + 
+				"group by Season,HomeTeam) as tableA,(select Season,HomeTeam,count(distinct(match_id)) as tot " + 
+				"from matches " + 
+				" where AwayTeam=? OR HomeTeam=? and FTR='D' " + 
+				"group by Season,HomeTeam) as tableD " + 
+				"where tableH.Season= tableA.Season " + 
+				"group by  tableH.Season ";
+		List<SeasondAndPoints> result = new ArrayList<>();
+		Connection conn = DBConnect.getConnection();
+
+		try {
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setString(1, team);
+			st.setString(2, team);
+			st.setString(3, team);
+			st.setString(4, team);
+			ResultSet res = st.executeQuery();
+
+			while (res.next()) {
+				result.add(new SeasondAndPoints(map.get(res.getInt("tableH.Season")), res.getInt("sum")) );
+			}
+
+			conn.close();
+			return result;
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return null;
+		}
+	}
 }
 
